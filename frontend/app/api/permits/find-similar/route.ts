@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
+const BACKEND_URL =
+  process.env.BACKEND_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}/_/backend` : "http://localhost:8000");
 
 export async function POST(req: NextRequest) {
   try {
