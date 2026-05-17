@@ -1670,7 +1670,7 @@ export default function Page() {
     };
 
     setSimilarLoading(true);
-    fetch("/api/permits/find-similar", {
+    fetch("/api/routes/find-similar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
