@@ -712,6 +712,26 @@ label {
   color: #7a1f1f;
 }
 
+.route-status-card {
+  margin-bottom: 12px;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  animation: slideUp 250ms var(--ease-out) both;
+}
+
+.route-status-card--warn {
+  border-color: var(--amber-line);
+  background: color-mix(in srgb, var(--surface) 88%, var(--amber) 12%);
+}
+
+.route-status-card--danger {
+  border-color: var(--red-line);
+  background: color-mix(in srgb, var(--surface) 88%, var(--red) 12%);
+}
+
 /* ── Preset chips / form toolbar ─────────────────────────────────── */
 
 .form-toolbar,
@@ -1145,6 +1165,8 @@ label {
   color: var(--text);
   font-weight: 700;
   text-align: right;
+  max-width: 58%;
+  overflow-wrap: anywhere;
 }
 
 .map-popup__copy {

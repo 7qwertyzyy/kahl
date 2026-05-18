@@ -1020,8 +1020,61 @@ export default function Page() {
         return Number.isFinite(n) ? `${n.toFixed(digits)} ${unit}` : "unbekannt";
       };
 
-      const fmtBool = (v: any) => (v === true ? "JA" : v === false ? "NEIN" : "unbekannt");
-      const fmtDays = (v: any) => (Array.isArray(v) ? v.join(",") : "-");
+      const toNumber = (v: any): number | null => {
+        if (typeof v === "number" && Number.isFinite(v)) return v;
+        if (typeof v === "string" && v.trim()) {
+          const n = Number(v.replace(",", "."));
+          return Number.isFinite(n) ? n : null;
+        }
+        return null;
+      };
+      const toBool = (v: any): boolean | null => {
+        if (v === true || v === "true" || v === "1" || v === 1) return true;
+        if (v === false || v === "false" || v === "0" || v === 0) return false;
+        return null;
+      };
+      const fmtBool = (v: any) => {
+        const value = toBool(v);
+        return value === true ? "Ja" : value === false ? "Nein" : "unbekannt";
+      };
+      const parseList = (v: any): string[] => {
+        if (Array.isArray(v)) return v.map(String).filter(Boolean);
+        if (typeof v !== "string" || !v.trim()) return [];
+        try {
+          const parsed = JSON.parse(v);
+          if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+        } catch { /* ignore */ }
+        return v.split(",").map((item) => item.trim()).filter(Boolean);
+      };
+      const fmtDays = (v: any) => {
+        const days = parseList(v);
+        return days.length ? days.join(", ") : "nicht gemeldet";
+      };
+      const fmtDateTime = (v: any) => {
+        if (!v) return "nicht gemeldet";
+        const date = new Date(String(v));
+        if (Number.isNaN(date.getTime())) return String(v);
+        return new Intl.DateTimeFormat("de-DE", {
+          dateStyle: "short",
+          timeStyle: "short",
+          timeZone: "Europe/Berlin",
+        }).format(date);
+      };
+      const fmtTime = (v: any) => {
+        if (v === null || v === undefined || v === "") return "nicht gemeldet";
+        return String(v);
+      };
+      const fmtWindow = (start: any, end: any) => {
+        const startText = fmtTime(start);
+        const endText = fmtTime(end);
+        if (startText === "nicht gemeldet" && endText === "nicht gemeldet") return "nicht gemeldet";
+        return `${startText} bis ${endText}`;
+      };
+      const fmtLength = (v: any) => {
+        const lengthM = toNumber(v);
+        if (lengthM === null) return "nicht gemeldet";
+        return lengthM >= 1000 ? `${(lengthM / 1000).toFixed(2)} km` : `${lengthM.toFixed(0)} m`;
+      };
       const popupText = `${p.title ?? ""} ${p.description ?? ""} ${p.reason ?? ""} ${p.subtitle ?? ""}`;
       const parseTextLimit = (patterns: RegExp[]) => {
         for (const pattern of patterns) {
@@ -1070,17 +1123,17 @@ export default function Page() {
           <div class="map-popup__badge map-popup__badge--roadwork">Aktive Verkehrsmaßnahme</div>
           <div class="map-popup__section">
             <div class="map-popup__row"><span>ID</span><strong>${escapeHtml(p.external_id ?? "-")}</strong></div>
-            <div class="map-popup__row"><span>Gültig</span><strong>${escapeHtml(p.valid_from ?? "-")} – ${escapeHtml(p.valid_to ?? "-")}</strong></div>
-            <div class="map-popup__row"><span>Fenster</span><strong>${escapeHtml(p.start_time ?? "-")}–${escapeHtml(p.end_time ?? "-")} · ${escapeHtml(fmtDays(p.days))}</strong></div>
-            <div class="map-popup__row"><span>Länge</span><strong>${
-              typeof p.length_m === "number" ? `${(p.length_m / 1000).toFixed(2)} km` : "-"
-            }</strong></div>
+            <div class="map-popup__row"><span>Gültig von</span><strong>${escapeHtml(fmtDateTime(p.valid_from))}</strong></div>
+            <div class="map-popup__row"><span>Gültig bis</span><strong>${escapeHtml(fmtDateTime(p.valid_to))}</strong></div>
+            <div class="map-popup__row"><span>Zeitfenster</span><strong>${escapeHtml(fmtWindow(p.start_time, p.end_time))}</strong></div>
+            <div class="map-popup__row"><span>Tage</span><strong>${escapeHtml(fmtDays(p.days))}</strong></div>
+            <div class="map-popup__row"><span>Länge</span><strong>${escapeHtml(fmtLength(p.length_m))}</strong></div>
             <div class="map-popup__row"><span>Quelle</span><strong>${escapeHtml(p.source ?? "–")}</strong></div>
           </div>
           <div class="map-popup__section">
             <div class="map-popup__section-title">Beschränkungen</div>
             ${restrictionsHtml}
-            <div class="map-popup__row"><span>Hard-Block</span><strong>${escapeHtml(fmtBool(p._hard_block))}</strong></div>
+            <div class="map-popup__row"><span>Vollsperre / Hard-Block</span><strong>${escapeHtml(fmtBool(p._hard_block))}</strong></div>
           </div>
         </div>
       `;
@@ -1809,13 +1862,11 @@ export default function Page() {
         {/* WARN/BLOCKED Box */}
         {planBlocked && (
           <div
-            style={{
-              padding: 10,
-              border: planBlocked?.meta?.status === "WARN" ? "1px solid var(--amber-line)" : "1px solid var(--red-line)",
-              background: planBlocked?.meta?.status === "WARN" ? "var(--amber-bg)" : "var(--red-bg)",
-              borderRadius: 10,
-              marginBottom: 12,
-            }}
+            className={`route-status-card ${
+              planBlocked?.meta?.status === "WARN"
+                ? "route-status-card--warn"
+                : "route-status-card--danger"
+            }`}
           >
             <div style={{ fontWeight: 700, marginBottom: 6 }}>
               {planBlocked?.meta?.status === "WARN"

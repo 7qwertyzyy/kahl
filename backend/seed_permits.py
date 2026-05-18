@@ -863,6 +863,285 @@ PERMITS = [
     ),
 ]
 
+EXAMPLE_ANFRAGEN = [
+    dict(
+        key="ANF-DEMO-2026-001",
+        eingabe_typ="freitext",
+        eingabe_rohtext=(
+            "Guten Tag, wir benötigen ein Angebot für den Transport eines "
+            "Netztransformators von Duisburg, Hüttenstraße 211 nach Mannheim, "
+            "Rheinaustraße 50. Maße ca. 42,5 m Länge, 5,1 m Breite, 4,8 m Höhe, "
+            "Gesamtgewicht 338 t, Achslast 12,4 t. Transportfenster möglichst "
+            "in KW 23. Bitte Genehmigung und Begleitung mit kalkulieren. "
+            "Viele Grüße, Siemens Energy AG"
+        ),
+        kunde="Siemens Energy AG",
+        ansprechpartner="Herr Keller",
+        email="logistik.energy@example.com",
+        telefon="+49 203 555 1880",
+        startort="Duisburg",
+        start_adresse="Hüttenstraße 211",
+        zielort="Mannheim",
+        ziel_adresse="Rheinaustraße 50, Kraftwerk Mannheim",
+        transportgut="Netztransformator",
+        laenge_m=42.5,
+        breite_m=5.1,
+        hoehe_m=4.8,
+        gewicht_t=338.0,
+        achslast_t=12.4,
+        fahrzeugtyp="Spezialtieflader / Modulfahrzeug",
+        anzahl_fahrten=1,
+        wunschdatum="2026-06-03",
+        frist_angebot="2026-05-24",
+        besonderheiten=j(["Brückenprüfung erforderlich", "Transport möglichst nachts", "Kranentladung am Ziel"]),
+        fehlende_infos=j(["Finaler Lastverteilungsplan", "Verbindliches Zeitfenster Kraftwerk Mannheim"]),
+        schwertransport_relevant=1,
+        geschaetzte_komplexitaet="sehr_komplex",
+        ki_einschaetzung="Sehr komplexer Schwertransport wegen 338 t Gesamtgewicht, 5,1 m Breite und Brückenauflagen.",
+        kalkulations_briefing=json.dumps({
+            "zusammenfassung": "Anfrage für einen Netztransformator von Duisburg nach Mannheim.",
+            "anfrage_bewertung": "Schwertransportrelevant und sehr komplex. Gewicht, Breite und Achslast erfordern detaillierte Strecken- und Brückenprüfung.",
+            "strecken_einschaetzung": "Wahrscheinlich über A59/A3/A67 mit kritischen Rheinquerungen und Autobahnabschnitten.",
+            "genehmigungshinweis": "Großraum- und Schwertransportgenehmigung erforderlich; Brückenauflagen wahrscheinlich.",
+            "erkenntnisse_aus_altfaellen": "Ähnlicher Altfall GST-2026-00221 enthält Nachtfahrt, Begleitfahrzeuge und Sonderauflage Rheinbrücke.",
+            "risiko_zusammenfassung": "- Brückenlasten\n- Nachtfahrt\n- Begleitfahrzeuge\n- lange Vorlaufzeit",
+            "fehlende_informationen": ["Finaler Lastverteilungsplan", "Verbindliches Zeitfenster Kraftwerk Mannheim"],
+            "empfohlene_naechste_schritte": ["Altfall GST-2026-00221 prüfen", "Brückenliste anfordern", "Begleitverfügbarkeit klären"],
+            "hinweis_kalkulation": "Begleitung, Genehmigungsgebühren, Nachtfahrt und Wartezeiten einpreisen.",
+            "hinweis_genehmigung": "Achslast und Lastverteilung früh mit Behörden abstimmen.",
+            "hinweis_disposition": "Fahrzeug- und Begleitkapazität reservieren.",
+        }, ensure_ascii=False),
+        risiko_zusammenfassung="Brückenlasten, Achslast, Nachtfahrt und Begleitfahrzeuge sind die zentralen Risiken.",
+        auflagen_zusammenfassung="Altfall deutet auf Nachtfahrt, Begleitfahrzeuge und Brücken-Einzelüberquerung hin.",
+        empfohlene_naechste_schritte=j(["Lastverteilungsplan nachfordern", "Referenzgenehmigung prüfen", "Vorabstrecke im Planer bewerten"]),
+        kundenantwort_entwurf=(
+            "Sehr geehrter Herr Keller,\n\n"
+            "vielen Dank für Ihre Anfrage zum Transformatortransport von Duisburg nach Mannheim. "
+            "Für die weitere Prüfung benötigen wir bitte noch den finalen Lastverteilungsplan "
+            "sowie das verbindliche Zeitfenster am Kraftwerk Mannheim.\n\n"
+            "Mit freundlichen Grüßen\nKahl Schwerlast GmbH"
+        ),
+        status="neu",
+        zugewiesen_an="Dispo Nord",
+        prioritaet="dringend",
+        interne_notizen="Sehr guter Match zu GST-2026-00221.",
+        matches=[("GST-2026-00221", 92.5, ["Gleiche Startregion (Duisburg)", "Gleiche Zielregion (Mannheim)", "Gewicht nur 2.0t Abweichung"], "Sehr ähnlicher Fall - Auflagen direkt übertragbar")],
+    ),
+    dict(
+        key="ANF-DEMO-2026-002",
+        eingabe_typ="formular",
+        eingabe_rohtext="Formularanfrage: Rotorblatttransport Emden nach Aurich, 65 m Blatt, KW 22.",
+        kunde="Vestas Wind Systems GmbH",
+        ansprechpartner="Frau Janssen",
+        email="transport.vestas@example.com",
+        telefon="+49 4921 555 420",
+        startort="Emden",
+        start_adresse="Friesenstraße 12",
+        zielort="Aurich",
+        ziel_adresse="Windparkstraße 1, Auricher Feldmark",
+        transportgut="Rotorblatt 65 m",
+        laenge_m=78.0,
+        breite_m=4.8,
+        hoehe_m=4.2,
+        gewicht_t=184.0,
+        achslast_t=10.0,
+        fahrzeugtyp="Rotorblattadapter",
+        anzahl_fahrten=3,
+        wunschdatum="2026-05-29",
+        frist_angebot="2026-05-22",
+        besonderheiten=j(["Drei Rotorblätter", "Ampelkoordination B72/K131", "Nachtfahrt bevorzugt"]),
+        fehlende_infos=j(["Reihenfolge der drei Fahrten", "Bestätigung Kranfenster am Windpark"]),
+        schwertransport_relevant=1,
+        geschaetzte_komplexitaet="sehr_komplex",
+        ki_einschaetzung="Rotorblatttransport mit erheblicher Länge und lokaler Kurven-/Ampelkoordination.",
+        kalkulations_briefing=json.dumps({
+            "zusammenfassung": "Anfrage für drei Rotorblatttransporte von Emden nach Aurich.",
+            "anfrage_bewertung": "Sehr komplex wegen Länge und Windparkzufahrt.",
+            "strecken_einschaetzung": "B210/B72/K131 analog Altfall wahrscheinlich.",
+            "genehmigungshinweis": "Schwertransportgenehmigung, Nachtfahrt und Begleitung wahrscheinlich.",
+            "erkenntnisse_aus_altfaellen": "Altfall ST-2026-00142 passt sehr gut und enthält Polizei, Nachtfahrt und Ampelkoordination.",
+            "risiko_zusammenfassung": "- Kurvenradien\n- Ampeln\n- Nachtfahrt\n- mehrere Fahrten",
+            "fehlende_informationen": ["Reihenfolge der drei Fahrten", "Bestätigung Kranfenster am Windpark"],
+            "empfohlene_naechste_schritte": ["Altfall ST-2026-00142 prüfen", "Windpark-Zeitfenster bestätigen", "Begleitung vorreservieren"],
+            "hinweis_kalkulation": "Mehrfachfahrt und Wartezeiten separat kalkulieren.",
+            "hinweis_genehmigung": "Polizei- und Ampelauflagen früh klären.",
+            "hinweis_disposition": "Rotorblattadapter und Begleitung blocken.",
+        }, ensure_ascii=False),
+        risiko_zusammenfassung="Kurvenradien, Ampelschaltung und mehrere Nachtfahrten.",
+        auflagen_zusammenfassung="Altfall enthält Polizei, Begleitfahrzeug, Nachtfahrt und Ampelkoordination.",
+        empfohlene_naechste_schritte=j(["Kranfenster abfragen", "Begleitfahrzeuge reservieren", "Route im Planer validieren"]),
+        kundenantwort_entwurf="Sehr geehrte Frau Janssen,\n\nvielen Dank für die Anfrage. Wir prüfen die drei Rotorblattfahrten und benötigen noch die Reihenfolge der Fahrten sowie das bestätigte Kranfenster am Windpark.\n\nMit freundlichen Grüßen\nKahl Schwerlast GmbH",
+        status="in_bearbeitung",
+        zugewiesen_an="Genehmigung Nord",
+        prioritaet="dringend",
+        interne_notizen="Direkter Referenzfall vorhanden.",
+        matches=[("ST-2026-00142", 95.0, ["Gleiche Startregion (Emden)", "Gleiche Zielregion (Aurich)", "Breite nur 0.00m Abweichung"], "Sehr ähnlicher Fall - Auflagen direkt übertragbar")],
+    ),
+    dict(
+        key="ANF-DEMO-2026-003",
+        eingabe_typ="freitext",
+        eingabe_rohtext=(
+            "Hallo Kahl-Team, bitte Angebot für Transport eines Kettenbaggers "
+            "von Frankfurt Osthafen nach Leipzig A38 Baustelle. Maße liegen nur grob vor: "
+            "ca. 26 m lang, 4 m breit, 4,8 m hoch, 80 t. Achslasten reichen wir nach. "
+            "Wunsch Anfang Juni. STRABAG SE"
+        ),
+        kunde="STRABAG SE",
+        ansprechpartner="Herr Mohr",
+        email="baulogistik@example.com",
+        telefon=None,
+        startort="Frankfurt am Main",
+        start_adresse="Hanauer Landstraße 301, Osthafen",
+        zielort="Leipzig",
+        ziel_adresse="Baustelle A38 AS Naunhof, km 32+500",
+        transportgut="Kettenbagger",
+        laenge_m=26.0,
+        breite_m=4.0,
+        hoehe_m=4.8,
+        gewicht_t=80.0,
+        achslast_t=None,
+        fahrzeugtyp=None,
+        anzahl_fahrten=1,
+        wunschdatum="2026-06-04",
+        frist_angebot="2026-05-25",
+        besonderheiten=j(["Achslasten fehlen", "Oberwagen eventuell separat"]),
+        fehlende_infos=j(["Achslasten", "Fahrzeugtyp oder -anforderung", "Technische Zeichnung oder Ladungsdatenblatt"]),
+        schwertransport_relevant=1,
+        geschaetzte_komplexitaet="komplex",
+        ki_einschaetzung="Komplexer Baustellentransport mit fehlenden Achslasten und Höhe 4,8 m.",
+        kalkulations_briefing=json.dumps({
+            "zusammenfassung": "Anfrage für Kettenbaggertransport Frankfurt nach Leipzig.",
+            "anfrage_bewertung": "Schwertransportrelevant; Achslast und Fahrzeugtyp fehlen noch.",
+            "strecken_einschaetzung": "A661/A4/A9 analog Referenzfall wahrscheinlich.",
+            "genehmigungshinweis": "Genehmigung erforderlich; Höhen- und Baustellenrestriktionen prüfen.",
+            "erkenntnisse_aus_altfaellen": "Altfall GST-2026-00287 passt hinsichtlich Strecke, Maße und STRABAG-Kontext.",
+            "risiko_zusammenfassung": "- Achslast unbekannt\n- Höhe 4,8 m\n- Baustellenzufahrt",
+            "fehlende_informationen": ["Achslasten", "Fahrzeugtyp oder -anforderung", "Technische Zeichnung oder Ladungsdatenblatt"],
+            "empfohlene_naechste_schritte": ["Achslastdaten nachfordern", "Oberwagen separat klären", "Altfall prüfen"],
+            "hinweis_kalkulation": "Begleitfahrzeug und mögliche Zweitfahrt berücksichtigen.",
+            "hinweis_genehmigung": "Ohne Achslast keine belastbare Brückenprüfung.",
+            "hinweis_disposition": "Fahrzeug erst nach technischen Daten final disponieren.",
+        }, ensure_ascii=False),
+        risiko_zusammenfassung="Achslast fehlt; Höhe und Baustellenzufahrt kritisch.",
+        auflagen_zusammenfassung="Altfall deutet auf Begleitfahrzeug und Tagesfahrt Di-Do hin.",
+        empfohlene_naechste_schritte=j(["Achslasten nachfordern", "Altfall GST-2026-00287 öffnen", "Route gegen Baustellen prüfen"]),
+        kundenantwort_entwurf="Sehr geehrter Herr Mohr,\n\nvielen Dank für Ihre Anfrage. Für die weitere Prüfung benötigen wir bitte noch die Achslasten, den vorgesehenen Fahrzeugtyp sowie ein technisches Datenblatt bzw. eine Zeichnung.\n\nMit freundlichen Grüßen\nKahl Schwerlast GmbH",
+        status="neu",
+        zugewiesen_an="Kalkulation",
+        prioritaet="normal",
+        interne_notizen="Gute Vergleichsbasis, aber technische Daten fehlen.",
+        matches=[("GST-2026-00287", 88.0, ["Gleiche Startregion (Frankfurt am Main)", "Gleiche Zielregion (Leipzig)", "Gewicht nur 0.0t Abweichung"], "Sehr ähnlicher Fall - Auflagen direkt übertragbar")],
+    ),
+    dict(
+        key="ANF-DEMO-2026-004",
+        eingabe_typ="freitext",
+        eingabe_rohtext=(
+            "Wir planen einen Transport einer Laserschneidemaschine von Ditzingen "
+            "nach Nürnberg. Maße 24 m x 3,6 m x 4,2 m, 52 t, Achslast 9 t. "
+            "Eine Fahrt, gewünschter Termin 20.06.2026. Bitte Angebot."
+        ),
+        kunde="Trumpf GmbH + Co. KG",
+        ansprechpartner="Frau Weber",
+        email="maschinenlogistik@example.com",
+        telefon="+49 7156 303 100",
+        startort="Stuttgart",
+        start_adresse="Johann-Maus-Straße 2, Ditzingen",
+        zielort="Nürnberg",
+        ziel_adresse="Sigmundstraße 200",
+        transportgut="Laserschneidemaschine",
+        laenge_m=24.0,
+        breite_m=3.6,
+        hoehe_m=4.2,
+        gewicht_t=52.0,
+        achslast_t=9.0,
+        fahrzeugtyp="Tieflader",
+        anzahl_fahrten=1,
+        wunschdatum="2026-06-20",
+        frist_angebot="2026-05-30",
+        besonderheiten=j(["Erschütterungsempfindliche Fracht", "Tagesfahrt bevorzugt"]),
+        fehlende_infos=j([]),
+        schwertransport_relevant=1,
+        geschaetzte_komplexitaet="mittel",
+        ki_einschaetzung="Schwertransportrelevant, aber mit überschaubarer Komplexität.",
+        kalkulations_briefing=json.dumps({
+            "zusammenfassung": "Anfrage für Laserschneidemaschine von Ditzingen nach Nürnberg.",
+            "anfrage_bewertung": "Schwertransportrelevant wegen Länge, Breite, Höhe und Gewicht; mittlere Komplexität.",
+            "strecken_einschaetzung": "B295/A8/A7 analog Altfall wahrscheinlich.",
+            "genehmigungshinweis": "Großraumtransportgenehmigung erforderlich.",
+            "erkenntnisse_aus_altfaellen": "Altfall GST-2026-00244 ist sehr ähnlich und weist geringe Auflagenlast aus.",
+            "risiko_zusammenfassung": "- Erschütterungsempfindlichkeit\n- Höhe 4,2 m",
+            "fehlende_informationen": [],
+            "empfohlene_naechste_schritte": ["Altfall prüfen", "Fahrzeugverfügbarkeit klären", "Angebot erstellen"],
+            "hinweis_kalkulation": "Standardpositionen plus Ladungssicherung und schonende Fahrweise berücksichtigen.",
+            "hinweis_genehmigung": "Genehmigung mit Standardauflagen wahrscheinlich.",
+            "hinweis_disposition": "Tieflader und Fahrer mit empfindlicher Maschinenfracht einplanen.",
+        }, ensure_ascii=False),
+        risiko_zusammenfassung="Geringes bis mittleres Risiko; Fracht ist erschütterungsempfindlich.",
+        auflagen_zusammenfassung="Altfall erlaubt Tagesfahrt, Begleitung nur empfohlen.",
+        empfohlene_naechste_schritte=j(["Angebot erstellen", "Altfall GST-2026-00244 prüfen", "Ladungssicherung abstimmen"]),
+        kundenantwort_entwurf="Sehr geehrte Frau Weber,\n\nvielen Dank für Ihre Anfrage. Die Angaben sind für eine erste Prüfung vollständig. Wir prüfen Strecke, Genehmigungssituation und Fahrzeugverfügbarkeit und melden uns mit den nächsten Schritten.\n\nMit freundlichen Grüßen\nKahl Schwerlast GmbH",
+        status="angebot_erstellt",
+        zugewiesen_an="Kalkulation",
+        prioritaet="normal",
+        interne_notizen="Kann als einfaches Demo-Beispiel für vollständige Anfrage dienen.",
+        matches=[("GST-2026-00244", 90.0, ["Gleiche Zielregion (Nürnberg)", "Breite nur 0.00m Abweichung", "Gewicht nur 0.0t Abweichung"], "Sehr ähnlicher Fall - Auflagen direkt übertragbar")],
+    ),
+    dict(
+        key="ANF-DEMO-2026-005",
+        eingabe_typ="freitext",
+        eingabe_rohtext=(
+            "Bitte prüfen: Transport eines Brückenfertigteils von Nürnberg Hafen "
+            "zur A9-Baustelle München-Nord. 40 m Länge, 4,8 m Breite, 4,1 m Höhe, "
+            "145 t, Achslast ca. 11 t. Termin möglichst diese Woche."
+        ),
+        kunde="Leonhard Weiss GmbH & Co. KG",
+        ansprechpartner="Herr Schuster",
+        email="fertigteile@example.com",
+        telefon="+49 911 555 67",
+        startort="Nürnberg",
+        start_adresse="Beuthener Straße 43, Hafen Nürnberg",
+        zielort="München",
+        ziel_adresse="Baustelle A9 Brücke km 511+800",
+        transportgut="Spannbeton-Brückenfertigteil",
+        laenge_m=40.0,
+        breite_m=4.8,
+        hoehe_m=4.1,
+        gewicht_t=145.0,
+        achslast_t=11.0,
+        fahrzeugtyp="Tiefbett / Nachläuferkombination",
+        anzahl_fahrten=1,
+        wunschdatum="2026-05-22",
+        frist_angebot="2026-05-19",
+        besonderheiten=j(["Sehr kurzfristiger Termin", "A9-Baustellenbereich", "Kranmontage vor Ort"]),
+        fehlende_infos=j(["Bestätigung Kranfenster", "Baustellen-Ansprechpartner vor Ort"]),
+        schwertransport_relevant=1,
+        geschaetzte_komplexitaet="sehr_komplex",
+        ki_einschaetzung="Sehr komplex wegen kurzfristigem Termin, 145 t und Baustellenziel.",
+        kalkulations_briefing=json.dumps({
+            "zusammenfassung": "Kurzfristige Anfrage für Brückenfertigteil Nürnberg nach München.",
+            "anfrage_bewertung": "Sehr komplex und zeitkritisch.",
+            "strecken_einschaetzung": "A9 direkt, Baustellenabschnitt kritisch.",
+            "genehmigungshinweis": "Schwertransportgenehmigung und Baustellenabstimmung zwingend.",
+            "erkenntnisse_aus_altfaellen": "Altfall ST-2026-00267 passt nahezu vollständig.",
+            "risiko_zusammenfassung": "- kurzfristiger Termin\n- Gewicht 145 t\n- Baustellenlogistik\n- Nachtfahrt wahrscheinlich",
+            "fehlende_informationen": ["Bestätigung Kranfenster", "Baustellen-Ansprechpartner vor Ort"],
+            "empfohlene_naechste_schritte": ["Altfall ST-2026-00267 prüfen", "Autobahn GmbH kontaktieren", "Kranfenster bestätigen"],
+            "hinweis_kalkulation": "Eilzuschlag, Wartezeit und Begleitfahrzeuge berücksichtigen.",
+            "hinweis_genehmigung": "Vorlaufzeit kritisch; Behördenkontakt sofort starten.",
+            "hinweis_disposition": "Fahrzeug und Begleitfahrzeuge sofort blocken.",
+        }, ensure_ascii=False),
+        risiko_zusammenfassung="Zeitkritisch, schwer, Baustellenabschnitt und Kranfenster offen.",
+        auflagen_zusammenfassung="Altfall enthält Nachtfahrt, zwei Begleitfahrzeuge und Schrittgeschwindigkeit im Baubereich.",
+        empfohlene_naechste_schritte=j(["Autobahn GmbH anfragen", "Kranfenster bestätigen", "Begleitung blocken"]),
+        kundenantwort_entwurf="Sehr geehrter Herr Schuster,\n\nvielen Dank für Ihre Anfrage. Aufgrund des kurzfristigen Termins starten wir direkt mit der Vorprüfung. Bitte senden Sie uns noch das bestätigte Kranfenster und den Baustellen-Ansprechpartner vor Ort.\n\nMit freundlichen Grüßen\nKahl Schwerlast GmbH",
+        status="in_bearbeitung",
+        zugewiesen_an="Dispo Süd",
+        prioritaet="dringend",
+        interne_notizen="Zeitkritisch, sofortige Prüfung.",
+        matches=[("ST-2026-00267", 94.0, ["Gleiche Startregion (Nürnberg)", "Gleiche Zielregion (München)", "Gewicht nur 0.0t Abweichung"], "Sehr ähnlicher Fall - Auflagen direkt übertragbar")],
+    ),
+]
+
 
 _INSERT_SQL = """
     INSERT INTO permits (
@@ -896,19 +1175,91 @@ _INSERT_SQL = """
     )
 """
 
+_INSERT_ANFRAGE_SQL = """
+    INSERT INTO transport_requests (
+        eingabe_typ, eingabe_rohtext, kunde, ansprechpartner, email, telefon,
+        startort, start_adresse, zielort, ziel_adresse, transportgut,
+        laenge_m, breite_m, hoehe_m, gewicht_t, achslast_t,
+        fahrzeugtyp, anzahl_fahrten, wunschdatum, frist_angebot,
+        besonderheiten, fehlende_infos, schwertransport_relevant,
+        geschaetzte_komplexitaet, ki_einschaetzung, kalkulations_briefing,
+        risiko_zusammenfassung, auflagen_zusammenfassung,
+        empfohlene_naechste_schritte, kundenantwort_entwurf,
+        status, zugewiesen_an, prioritaet, interne_notizen, anfrage_text
+    ) VALUES (
+        :eingabe_typ, :eingabe_rohtext, :kunde, :ansprechpartner, :email, :telefon,
+        :startort, :start_adresse, :zielort, :ziel_adresse, :transportgut,
+        :laenge_m, :breite_m, :hoehe_m, :gewicht_t, :achslast_t,
+        :fahrzeugtyp, :anzahl_fahrten, :wunschdatum, :frist_angebot,
+        :besonderheiten, :fehlende_infos, :schwertransport_relevant,
+        :geschaetzte_komplexitaet, :ki_einschaetzung, :kalkulations_briefing,
+        :risiko_zusammenfassung, :auflagen_zusammenfassung,
+        :empfohlene_naechste_schritte, :kundenantwort_entwurf,
+        :status, :zugewiesen_an, :prioritaet, :interne_notizen, :key
+    )
+"""
 
-def seed_db(conn: sqlite3.Connection) -> None:
-    """Insert demo permits into an open connection if the table is empty."""
+_INSERT_ANFRAGE_MATCH_SQL = """
+    INSERT INTO anfrage_matches (
+        transport_request_id, permit_id, similarity_score, match_gruende, permit_status, empfehlung
+    ) VALUES (?, ?, ?, ?, ?, ?)
+"""
+
+
+def _seed_permits_if_empty(conn: sqlite3.Connection) -> int:
     count = conn.execute("SELECT COUNT(*) FROM permits").fetchone()[0]
     if count > 0:
-        return
+        return 0
     cur = conn.cursor()
     for p in PERMITS:
         cur.execute(_INSERT_SQL, p)
+    return len(PERMITS)
+
+
+def _seed_anfragen_if_empty(conn: sqlite3.Connection) -> int:
+    count = conn.execute("SELECT COUNT(*) FROM transport_requests").fetchone()[0]
+    if count > 0:
+        return 0
+
+    cur = conn.cursor()
+    inserted = 0
+    for anfrage in EXAMPLE_ANFRAGEN:
+        row = dict(anfrage)
+        matches = row.pop("matches", [])
+        cur.execute(_INSERT_ANFRAGE_SQL, row)
+        request_id = cur.lastrowid
+        inserted += 1
+
+        for genehmigungsnummer, score, gruende, empfehlung in matches:
+            permit = conn.execute(
+                "SELECT id, status FROM permits WHERE genehmigungsnummer = ?",
+                (genehmigungsnummer,),
+            ).fetchone()
+            if not permit:
+                continue
+            cur.execute(
+                _INSERT_ANFRAGE_MATCH_SQL,
+                (
+                    request_id,
+                    permit["id"],
+                    score,
+                    j(gruende),
+                    permit["status"],
+                    empfehlung,
+                ),
+            )
+    return inserted
+
+
+def seed_db(conn: sqlite3.Connection) -> None:
+    """Insert demo permits and example transport requests into an open connection."""
+    _seed_permits_if_empty(conn)
+    _seed_anfragen_if_empty(conn)
 
 
 def insert_permits():
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
     inserted = 0
@@ -925,9 +1276,13 @@ def insert_permits():
         cur.execute(_INSERT_SQL, p)
         inserted += 1
 
+    anfragen_inserted = _seed_anfragen_if_empty(conn)
     conn.commit()
     conn.close()
-    print(f"Fertig: {inserted} Genehmigungen eingefügt, {skipped} bereits vorhanden.")
+    print(
+        f"Fertig: {inserted} Genehmigungen eingefügt, "
+        f"{skipped} bereits vorhanden, {anfragen_inserted} Beispiel-Anfragen eingefügt."
+    )
 
 
 if __name__ == "__main__":
