@@ -18,8 +18,6 @@ interface SidebarProps {
   onStartChange: (s: RouteStop) => void;
   end: RouteStop;
   onEndChange: (s: RouteStop) => void;
-  waypoints: RouteStop[];
-  onWaypointsChange: (w: RouteStop[]) => void;
   onCalculateRoute: () => void;
   isRouting: boolean;
   routeResult: RouteResult | null;
@@ -42,8 +40,6 @@ export default function Sidebar({
   onStartChange,
   end,
   onEndChange,
-  waypoints,
-  onWaypointsChange,
   onCalculateRoute,
   isRouting,
   routeResult,
@@ -91,8 +87,6 @@ export default function Sidebar({
           onStartChange={onStartChange}
           end={end}
           onEndChange={onEndChange}
-          waypoints={waypoints}
-          onWaypointsChange={onWaypointsChange}
           onCalculateRoute={onCalculateRoute}
           isRouting={isRouting}
           routeError={routeError}

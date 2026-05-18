@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import type { RouteResult, VehicleParams, RouteStop, VehicleMode } from "@/lib/types";
 import type { TransportAnfrage } from "@/lib/types";
 import { api } from "@/lib/api";
+import { geocodeAddress } from "@/lib/geocoding";
 import Sidebar from "@/components/Sidebar";
 import Link from "next/link";
 
@@ -24,96 +25,132 @@ const makeStop = (label = ""): RouteStop => ({
   coordinates: null,
 });
 
+const parseDateParam = (value: string | null): Date => {
+  if (!value) return new Date();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
 function PlanerInner() {
   const searchParams = useSearchParams();
 
-  // Read URL params — label only (no geocoding at mount; user confirms via geocoder)
-  const urlStart = searchParams.get("start") ?? "";
-  const urlZiel = searchParams.get("ziel") ?? "";
-  const urlBreite = parseFloat(searchParams.get("breite") ?? "") || null;
-  const urlHoehe = parseFloat(searchParams.get("hoehe") ?? "") || null;
-  const urlGewicht = parseFloat(searchParams.get("gewicht") ?? "") || null;
-  const urlAchslast = parseFloat(searchParams.get("achslast") ?? "") || null;
+  const urlStart  = searchParams.get("start")   ?? "";
+  const urlZiel   = searchParams.get("ziel")    ?? "";
+  const urlBreite = parseFloat(searchParams.get("breite")   ?? "") || null;
+  const urlHoehe  = parseFloat(searchParams.get("hoehe")    ?? "") || null;
+  const urlGewicht= parseFloat(searchParams.get("gewicht")  ?? "") || null;
+  const urlAchslast=parseFloat(searchParams.get("achslast") ?? "") || null;
+  const urlDatum = searchParams.get("datum");
   const urlAnfrageId = searchParams.get("anfrage_id");
 
   const initialVehicle: VehicleParams = {
-    width: urlBreite ?? DEFAULT_VEHICLE.width,
-    height: urlHoehe ?? DEFAULT_VEHICLE.height,
-    weight: urlGewicht ?? DEFAULT_VEHICLE.weight,
+    width:    urlBreite   ?? DEFAULT_VEHICLE.width,
+    height:   urlHoehe    ?? DEFAULT_VEHICLE.height,
+    weight:   urlGewicht  ?? DEFAULT_VEHICLE.weight,
     axleload: urlAchslast ?? DEFAULT_VEHICLE.axleload,
   };
 
   const [vehicleMode, setVehicleMode] = useState<VehicleMode>("STD");
-  const [vehicle, setVehicle] = useState<VehicleParams>(initialVehicle);
-  const [start, setStart] = useState<RouteStop>(makeStop(urlStart));
-  const [end, setEnd] = useState<RouteStop>(makeStop(urlZiel));
-  const [waypoints, setWaypoints] = useState<RouteStop[]>([]);
+  const [vehicle,     setVehicle]     = useState<VehicleParams>(initialVehicle);
+  const [start,       setStart]       = useState<RouteStop>(makeStop(urlStart));
+  const [end,         setEnd]         = useState<RouteStop>(makeStop(urlZiel));
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
-  const [routeError, setRouteError] = useState<string | null>(null);
-  const [isRouting, setIsRouting] = useState(false);
+  const [routeError,  setRouteError]  = useState<string | null>(null);
+  const [isRouting,   setIsRouting]   = useState(false);
   const [showConstructions, setShowConstructions] = useState(true);
-  const [showTraffic, setShowTraffic] = useState(false);
-  const [filterDate, setFilterDate] = useState<Date>(new Date());
-  const [anfrage, setAnfrage] = useState<TransportAnfrage | null>(null);
+  const [showTraffic,       setShowTraffic]       = useState(false);
+  const [filterDate,        setFilterDate]        = useState<Date>(parseDateParam(urlDatum));
+  const [anfrage,           setAnfrage]           = useState<TransportAnfrage | null>(null);
 
   const mapFlyToRef = useRef<((coords: [number, number]) => void) | null>(null);
 
-  // Update vehicle if URL params change (e.g. navigated from permit detail)
-  useEffect(() => {
-    setVehicle({
-      width: urlBreite ?? DEFAULT_VEHICLE.width,
-      height: urlHoehe ?? DEFAULT_VEHICLE.height,
-      weight: urlGewicht ?? DEFAULT_VEHICLE.weight,
-      axleload: urlAchslast ?? DEFAULT_VEHICLE.axleload,
-    });
-    if (urlStart) setStart(makeStop(urlStart));
-    if (urlZiel) setEnd(makeStop(urlZiel));
-  // Only run when URL params change
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.toString()]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!urlAnfrageId) {
-      Promise.resolve().then(() => {
-        if (!cancelled) setAnfrage(null);
-      });
-      return;
-    }
-    api.getAnfrage(Number(urlAnfrageId))
-      .then((value) => {
-        if (!cancelled) setAnfrage(value);
-      })
-      .catch(() => {
-        if (!cancelled) setAnfrage(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [urlAnfrageId]);
-
-  const handleCalculateRoute = useCallback(async () => {
-    if (!start.coordinates || !end.coordinates) {
-      setRouteError("Bitte Start und Ziel angeben.");
-      return;
-    }
+  // ── Core calculation function (no state deps → always stable) ──────────────
+  const calculateRouteWithCoords = useCallback(async (
+    startCoords: [number, number],
+    endCoords:   [number, number],
+    veh:         VehicleParams,
+    date:        Date,
+  ) => {
     setIsRouting(true);
     setRouteError(null);
+    setRouteResult(null);
     try {
       const { calculateRoute } = await import("@/lib/openrouteservice");
-      const coords: [number, number][] = [
-        start.coordinates,
-        ...waypoints.filter((w) => w.coordinates).map((w) => w.coordinates!),
-        end.coordinates,
-      ];
-      const result = await calculateRoute(coords, vehicle);
+      const result = await calculateRoute([startCoords, endCoords], veh, date);
       setRouteResult(result);
     } catch (err) {
       setRouteError(err instanceof Error ? err.message : "Unbekannter Fehler beim Routing.");
     } finally {
       setIsRouting(false);
     }
-  }, [start, end, waypoints, vehicle]);
+  }, []); // intentionally empty — only uses stable setters
+
+  // ── "Route planen" button ──────────────────────────────────────────────────
+  const handleCalculateRoute = useCallback(async () => {
+    if (!start.coordinates || !end.coordinates) {
+      setRouteError("Bitte Start und Ziel angeben.");
+      return;
+    }
+    await calculateRouteWithCoords(start.coordinates, end.coordinates, vehicle, filterDate);
+  }, [start, end, vehicle, filterDate, calculateRouteWithCoords]);
+
+  // ── Geocode URL params and auto-calculate on navigation from permit page ───
+  useEffect(() => {
+    const newVehicle: VehicleParams = {
+      width:    urlBreite   ?? DEFAULT_VEHICLE.width,
+      height:   urlHoehe    ?? DEFAULT_VEHICLE.height,
+      weight:   urlGewicht  ?? DEFAULT_VEHICLE.weight,
+      axleload: urlAchslast ?? DEFAULT_VEHICLE.axleload,
+    };
+    const newFilterDate = parseDateParam(urlDatum);
+    setVehicle(newVehicle);
+    setFilterDate(newFilterDate);
+    setRouteError(null);
+    setRouteResult(null);
+
+    if (!urlStart && !urlZiel) return;
+
+    let cancelled = false;
+    (async () => {
+      const [startResults, endResults] = await Promise.all([
+        urlStart ? geocodeAddress(urlStart).catch(() => []) : Promise.resolve([]),
+        urlZiel  ? geocodeAddress(urlZiel).catch(()  => []) : Promise.resolve([]),
+      ]);
+      if (cancelled) return;
+
+      const newStart: RouteStop = startResults.length > 0
+        ? { id: crypto.randomUUID(), label: startResults[0].place_name, coordinates: startResults[0].center }
+        : makeStop(urlStart);
+      const newEnd: RouteStop = endResults.length > 0
+        ? { id: crypto.randomUUID(), label: endResults[0].place_name, coordinates: endResults[0].center }
+        : makeStop(urlZiel);
+
+      setStart(newStart);
+      setEnd(newEnd);
+
+      if (newStart.coordinates && newEnd.coordinates) {
+        await calculateRouteWithCoords(newStart.coordinates, newEnd.coordinates, newVehicle, newFilterDate);
+      } else if (!cancelled) {
+        setRouteError("Start oder Ziel konnte nicht automatisch gefunden werden. Bitte im Planer aus den Vorschlägen auswählen.");
+      }
+    })();
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.toString()]);
+
+  // ── Anfrage data ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    if (!urlAnfrageId) {
+      Promise.resolve().then(() => { if (!cancelled) setAnfrage(null); });
+      return;
+    }
+    api.getAnfrage(Number(urlAnfrageId))
+      .then(value  => { if (!cancelled) setAnfrage(value); })
+      .catch(()    => { if (!cancelled) setAnfrage(null);  });
+    return () => { cancelled = true; };
+  }, [urlAnfrageId]);
 
   return (
     <div className="h-full w-full overflow-hidden relative">
@@ -126,8 +163,6 @@ function PlanerInner() {
         onStartChange={setStart}
         end={end}
         onEndChange={setEnd}
-        waypoints={waypoints}
-        onWaypointsChange={setWaypoints}
         onCalculateRoute={handleCalculateRoute}
         isRouting={isRouting}
         routeResult={routeResult}
@@ -140,7 +175,6 @@ function PlanerInner() {
         onFilterDateChange={setFilterDate}
         mapFlyTo={mapFlyToRef}
       />
-      {/* offset left-[380px] for sidebar, top-16 for navbar */}
       <div className="fixed top-16 bottom-0 left-[380px] right-0">
         <MapView
           routeGeoJSON={routeResult?.geojson ?? null}

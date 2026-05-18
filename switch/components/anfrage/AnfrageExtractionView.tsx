@@ -3,12 +3,13 @@ import type { TransportAnfrage } from "@/lib/types";
 
 export default function AnfrageExtractionView({ anfrage }: { anfrage: TransportAnfrage }) {
   const qs = new URLSearchParams({
-    ...(anfrage.startort ? { start: anfrage.startort } : {}),
-    ...(anfrage.zielort ? { ziel: anfrage.zielort } : {}),
+    ...(anfrage.start_adresse || anfrage.startort ? { start: anfrage.start_adresse || anfrage.startort || "" } : {}),
+    ...(anfrage.ziel_adresse || anfrage.zielort ? { ziel: anfrage.ziel_adresse || anfrage.zielort || "" } : {}),
     ...(anfrage.breite_m != null ? { breite: String(anfrage.breite_m) } : {}),
     ...(anfrage.hoehe_m != null ? { hoehe: String(anfrage.hoehe_m) } : {}),
     ...(anfrage.gewicht_t != null ? { gewicht: String(anfrage.gewicht_t) } : {}),
     ...(anfrage.achslast_t != null ? { achslast: String(anfrage.achslast_t) } : {}),
+    ...(anfrage.wunschdatum ? { datum: anfrage.wunschdatum } : {}),
     anfrage_id: String(anfrage.id),
   }).toString();
 

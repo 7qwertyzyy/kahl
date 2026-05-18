@@ -9,22 +9,10 @@ export interface VehicleParams {
   axleload: number;
 }
 
-export interface Waypoint {
-  id: string;
-  label: string;
-  coordinates: [number, number] | null;
-}
-
 export interface RouteStop {
   id: string;
   label: string;
   coordinates: [number, number] | null;
-}
-
-export interface RouteState {
-  start: RouteStop;
-  end: RouteStop;
-  waypoints: RouteStop[];
 }
 
 export interface RouteResult {

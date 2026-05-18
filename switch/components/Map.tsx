@@ -8,7 +8,6 @@ import type { Roadwork } from "@/lib/types";
 import {
   SOURCE_ROUTE,
   SOURCE_CONSTRUCTIONS,
-  LAYER_ROUTE,
   LAYER_ROUTE_OUTLINE,
   LAYER_CONSTRUCTION_LINES,
   LAYER_CONSTRUCTION_POINTS,
@@ -79,8 +78,7 @@ export default function Map({
     []
   );
 
-  // Initialize map — useLayoutEffect so DOM is measured after paint,
-  // requestAnimationFrame ensures the browser has actually laid out the container.
+  // Initialize map
   useLayoutEffect(() => {
     if (mapRef.current) return;
 
@@ -171,8 +169,6 @@ export default function Map({
         map.on("mouseleave", LAYER_CONSTRUCTION_POINTS, () => { map!.getCanvas().style.cursor = ""; });
         map.on("mouseenter", LAYER_CONSTRUCTION_LINES, () => { map!.getCanvas().style.cursor = "pointer"; });
         map.on("mouseleave", LAYER_CONSTRUCTION_LINES, () => { map!.getCanvas().style.cursor = ""; });
-        map.on("mouseenter", LAYER_ROUTE, () => { map!.getCanvas().style.cursor = "crosshair"; });
-        map.on("mouseleave", LAYER_ROUTE, () => { map!.getCanvas().style.cursor = ""; });
       });
 
       mapRef.current = map;
@@ -200,7 +196,7 @@ export default function Map({
     const source = map.getSource(SOURCE_ROUTE) as mapboxgl.GeoJSONSource | undefined;
     if (!source) return;
 
-    // Clear existing waypoint markers
+    // Clear existing start/end markers
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
@@ -248,7 +244,7 @@ export default function Map({
       endEl.className = "w-4 h-4 rounded-full border-2 border-white bg-red-500 shadow-lg";
       markersRef.current.push(new mapboxgl.Marker({ element: endEl }).setLngLat(endCoord).addTo(map));
     }
-  }, [routeGeoJSON]);
+  }, [routeGeoJSON, mapLoaded]);
 
   // Toggle construction visibility
   useEffect(() => {

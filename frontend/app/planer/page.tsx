@@ -12,7 +12,6 @@ import {
   MapPin,
   Moon,
   Navigation,
-  PencilRuler,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -31,23 +30,7 @@ import { buildPlanBody, DEFAULT_PLAN_PRESET } from "../lib/planPreset";
 
 type Coords = [number, number];
 type Suggestion = { label: string; coord: Coords; raw: any };
-type MapControlPoint = {
-  id: string;
-  coord: Coords;
-  label: string | null;
-  anchorMeasureM: number;
-  anchorCoord: Coords;
-  guideBefore: Coords;
-  guideAfter: Coords;
-};
-
 const sToMin = (s: number) => Math.round((s || 0) / 60);
-const MAX_ROUTE_CONTROL_POINTS = 2;
-const MIN_CONTROL_POINT_DISTANCE_M = 250;
-const CONTROL_POINT_MIN_MOVE_M = 70;
-const CONTROL_POINT_GUIDE_WINDOW_M = 1500;
-const CONTROL_POINT_ROUTE_PROXIMITY_M = 450;
-const CONTROL_POINT_DISTANCE_RATIO_LIMIT = 1.7;
 
 // -------------------- Helpers --------------------
 function parseLonLat(input: string): Coords | null {
@@ -260,10 +243,6 @@ function formatCoordLabel(coord: Coords) {
   return `${coord[0].toFixed(5)}, ${coord[1].toFixed(5)}`;
 }
 
-function makeControlPointId() {
-  return `cp_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
 function extractRouteLineCoords(feature: any): Coords[] {
   const geometry = feature?.geometry;
   if (!geometry) return [];
@@ -321,156 +300,6 @@ function simplifyRouteFeatureForMap(feature: any, extraProps?: Record<string, un
   };
 }
 
-function projectPointToRoute(point: Coords, routeCoords: Coords[]): { measureM: number; snapped: Coords } | null {
-  if (routeCoords.length < 2) return null;
-
-  let cumulativeM = 0;
-  let best:
-    | {
-        measureM: number;
-        snapped: Coords;
-        distanceSq: number;
-      }
-    | null = null;
-
-  for (let index = 0; index < routeCoords.length - 1; index += 1) {
-    const a = routeCoords[index];
-    const b = routeCoords[index + 1];
-    const refLat = ((a[1] + b[1] + point[1]) / 3) * (Math.PI / 180);
-    const lonScale = 111_320 * Math.cos(refLat);
-    const latScale = 110_540;
-
-    const ax = a[0] * lonScale;
-    const ay = a[1] * latScale;
-    const bx = b[0] * lonScale;
-    const by = b[1] * latScale;
-    const px = point[0] * lonScale;
-    const py = point[1] * latScale;
-
-    const vx = bx - ax;
-    const vy = by - ay;
-    const segLenSq = vx * vx + vy * vy;
-    if (segLenSq <= 0) continue;
-
-    const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / segLenSq));
-    const projX = ax + vx * t;
-    const projY = ay + vy * t;
-    const dx = px - projX;
-    const dy = py - projY;
-    const distanceSq = dx * dx + dy * dy;
-    const segLenM = Math.sqrt(segLenSq);
-    const snapped: Coords = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-
-    if (!best || distanceSq < best.distanceSq) {
-      best = {
-        measureM: cumulativeM + segLenM * t,
-        snapped,
-        distanceSq,
-      };
-    }
-
-    cumulativeM += segLenM;
-  }
-
-  return best ? { measureM: best.measureM, snapped: best.snapped } : null;
-}
-
-function routeCoordAtMeasure(routeCoords: Coords[], measureM: number): Coords | null {
-  if (routeCoords.length === 0) return null;
-  if (routeCoords.length === 1) return routeCoords[0];
-  if (measureM <= 0) return routeCoords[0];
-
-  let cumulativeM = 0;
-  for (let index = 0; index < routeCoords.length - 1; index += 1) {
-    const a = routeCoords[index];
-    const b = routeCoords[index + 1];
-    const segLenM = haversine(a[1], a[0], b[1], b[0]);
-    if (segLenM <= 0) continue;
-    if (measureM <= cumulativeM + segLenM) {
-      const t = Math.max(0, Math.min(1, (measureM - cumulativeM) / segLenM));
-      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-    }
-    cumulativeM += segLenM;
-  }
-
-  return routeCoords[routeCoords.length - 1];
-}
-
-function controlPointMoved(point: MapControlPoint) {
-  return haversine(point.coord[1], point.coord[0], point.anchorCoord[1], point.anchorCoord[0]) >= CONTROL_POINT_MIN_MOVE_M;
-}
-
-function distancePointToRouteM(point: Coords, routeCoords: Coords[]) {
-  const projection = projectPointToRoute(point, routeCoords);
-  if (!projection) return null;
-  return haversine(point[1], point[0], projection.snapped[1], projection.snapped[0]);
-}
-
-function expandControlPointToVias(point: MapControlPoint): Coords[] {
-  const candidates: Coords[] = [point.guideBefore, point.coord, point.guideAfter];
-  return candidates.filter((coord, index) => {
-    if (index === 0) return true;
-    return !coordsEqualApprox(coord, candidates[index - 1], 1e-5);
-  });
-}
-
-function orderViasWithMapControls(routeCoords: Coords[], formVias: Coords[], mapControls: MapControlPoint[]): Coords[] {
-  if (mapControls.length === 0) return formVias;
-  const effectiveControls = mapControls.filter(controlPointMoved);
-  if (effectiveControls.length === 0) return formVias;
-  if (routeCoords.length < 2) return [...formVias, ...effectiveControls.flatMap(expandControlPointToVias)];
-
-  const items = [
-    ...formVias.map((coord, index) => ({ coord, kind: "form" as const, index })),
-    ...effectiveControls.map((point, index) => ({ point, kind: "map" as const, index })),
-  ].map((item) => {
-    const projection =
-      item.kind === "form"
-        ? projectPointToRoute(item.coord, routeCoords)
-        : { measureM: item.point.anchorMeasureM, snapped: item.point.anchorCoord };
-    return {
-      ...item,
-      measureM:
-        projection?.measureM ??
-        (item.kind === "form" ? item.index * 10_000 : 1_000_000 + item.index * 10_000),
-    };
-  });
-
-  items.sort((a, b) => {
-    if (a.measureM !== b.measureM) return a.measureM - b.measureM;
-    if (a.kind !== b.kind) return a.kind === "form" ? -1 : 1;
-    return a.index - b.index;
-  });
-
-  return items.flatMap((item) =>
-    item.kind === "form" ? [item.coord] : expandControlPointToVias(item.point)
-  );
-}
-
-function insertControlPointByRoutePosition(
-  currentPoints: MapControlPoint[],
-  nextPoint: MapControlPoint,
-  routeCoords: Coords[]
-) {
-  if (currentPoints.length === 0 || routeCoords.length < 2) return [...currentPoints, nextPoint];
-
-  const nextMeasure = nextPoint.anchorMeasureM;
-  let insertAt = currentPoints.length;
-
-  for (let index = 0; index < currentPoints.length; index += 1) {
-    const currentMeasure = currentPoints[index].anchorMeasureM ?? Number.POSITIVE_INFINITY;
-    if (nextMeasure < currentMeasure) {
-      insertAt = index;
-      break;
-    }
-  }
-
-  return [
-    ...currentPoints.slice(0, insertAt),
-    nextPoint,
-    ...currentPoints.slice(insertAt),
-  ];
-}
 
 // -------------------- Autocomplete --------------------
 function AutocompleteInput(props: {
@@ -672,8 +501,8 @@ function AutocompleteInput(props: {
 
 // -------------------- Page --------------------
 export default function Page() {
-  const [startInput, setStartInput] = useState("6.9603, 50.9375");
-  const [endInput, setEndInput] = useState("7.4653, 51.5136");
+  const [startInput, setStartInput] = useState("");
+  const [endInput, setEndInput] = useState("");
   const [startPick, setStartPick] = useState<Suggestion | null>(null);
   const [endPick, setEndPick] = useState<Suggestion | null>(null);
   const [viaInputs, setViaInputs] = useState<string[]>([]);
@@ -729,6 +558,61 @@ export default function Page() {
     return d.toISOString().slice(0, 16);
   });
 
+  // -------------------- URL-Parameter → auto-route --------------------
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlStart = params.get("start") ?? "";
+    const urlZiel  = params.get("ziel")  ?? "";
+    if (!urlStart && !urlZiel) return;
+
+    const breite  = parseFloat(params.get("breite")  ?? "") || null;
+    const hoehe   = parseFloat(params.get("hoehe")   ?? "") || null;
+    const gewicht = parseFloat(params.get("gewicht") ?? "") || null;
+    const achslast= parseFloat(params.get("achslast")?? "") || null;
+
+    if (urlStart) setStartInput(urlStart);
+    if (urlZiel)  setEndInput(urlZiel);
+    if (breite  != null) setWidth(breite);
+    if (hoehe   != null) setHeight(hoehe);
+    if (gewicht != null) setWeight(gewicht);
+    if (achslast!= null) setAxle(achslast);
+    const isHeavy = (gewicht ?? 0) > 40 || (breite ?? 0) > 2.55;
+    if (isHeavy) setHeavyTransport(true);
+
+    (async () => {
+      setLoading(true);
+      setRouteError(null);
+      document.body.style.cursor = "progress";
+      try {
+        const [sc, ec] = await Promise.all([
+          urlStart ? geocode(urlStart) : Promise.resolve(null),
+          urlZiel  ? geocode(urlZiel)  : Promise.resolve(null),
+        ]);
+        if (urlStart && !sc) throw new Error(`Start nicht gefunden: "${urlStart}"`);
+        if (urlZiel  && !ec) throw new Error(`Ziel nicht gefunden: "${urlZiel}"`);
+        if (sc) setStartCoord(sc);
+        if (ec) setEndCoord(ec);
+        if (sc && ec) {
+          await requestPlan(sc, ec, [], {
+            vehicleOverride: {
+              w:     breite   ?? 3,
+              h:     hoehe    ?? 4,
+              wt:    gewicht  ?? 40,
+              ax:    achslast ?? 10,
+              heavy: isHeavy,
+            },
+          });
+        }
+      } catch (e: any) {
+        setRouteError(String(e?.message ?? e));
+      } finally {
+        setLoading(false);
+        document.body.style.cursor = "auto";
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const mapRef = useRef<Map | null>(null);
   const mapLoadedRef = useRef(false);
   const rwAbortRef = useRef<AbortController | null>(null);
@@ -736,7 +620,6 @@ export default function Page() {
   const lastRwBboxRef = useRef<[number, number, number, number] | null>(null);
   const permitRouteAbortRef = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const controlMarkersRef = useRef<maplibregl.Marker[]>([]);
   const skipNextFitRef = useRef(false);
   const [geojson, setGeojson] = useState<any | null>(null);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -753,8 +636,6 @@ export default function Page() {
   const [startCoord, setStartCoord] = useState<Coords | null>(null);
   const [endCoord, setEndCoord] = useState<Coords | null>(null);
   const [viaCoords, setViaCoords] = useState<Coords[]>([]);
-  const [mapControlPoints, setMapControlPoints] = useState<MapControlPoint[]>([]);
-  const [routeEditMode, setRouteEditMode] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
 
@@ -800,77 +681,6 @@ export default function Page() {
     const active = currentActiveRoute();
     return Number(active?.properties?.summary?.distance_km ?? 0);
   };
-  const validateAdjustedRoute = (gj: any, previousDistanceKm: number, mapControls: MapControlPoint[]) => {
-    const effectiveControls = mapControls.filter(controlPointMoved);
-    if (effectiveControls.length === 0) {
-      return { ok: true as const };
-    }
-
-    const features: any[] = Array.isArray(gj?.features) ? gj.features : [];
-    const coords = extractRouteLineCoords(features[0]);
-    if (coords.length < 2) {
-      return { ok: false as const, reason: "Die angepasste Route konnte nicht sauber berechnet werden." };
-    }
-
-    for (const point of effectiveControls) {
-      const distanceToRouteM = distancePointToRouteM(point.coord, coords);
-      if (distanceToRouteM == null || distanceToRouteM > CONTROL_POINT_ROUTE_PROXIMITY_M) {
-        return {
-          ok: false as const,
-          reason:
-            "Die gezogene Anpassung führt hier zu keinem sinnvollen Verlauf. Ziehe den Punkt näher an die gewünschte Straße.",
-        };
-      }
-    }
-
-    const newDistanceKm = Number(features[0]?.properties?.summary?.distance_km ?? 0);
-    if (previousDistanceKm > 0 && Number.isFinite(newDistanceKm)) {
-      const detourBudgetKm = effectiveControls.reduce((sum, point) => {
-        const dragKm = haversine(
-          point.coord[1],
-          point.coord[0],
-          point.anchorCoord[1],
-          point.anchorCoord[0]
-        ) / 1000;
-        return sum + Math.max(2.5, dragKm * 4.25);
-      }, 0);
-      const absoluteLimitKm = previousDistanceKm + detourBudgetKm + 8;
-      if (newDistanceKm > Math.max(previousDistanceKm * CONTROL_POINT_DISTANCE_RATIO_LIMIT, absoluteLimitKm)) {
-        return {
-          ok: false as const,
-          reason:
-            "Diese Ziehbewegung erzeugt einen unplausiblen Umweg. Bitte den Griffpunkt näher an die gewünschte Alternativstrecke setzen.",
-        };
-      }
-    }
-
-    return { ok: true as const };
-  };
-
-  const updateControlPointLabel = (id: string, coord: Coords, label: string | null) => {
-    setMapControlPoints((current) =>
-      current.map((point) =>
-        point.id === id && coordsEqualApprox(point.coord, coord, 1e-5)
-          ? { ...point, label: label?.trim() || formatCoordLabel(coord) }
-          : point
-      )
-    );
-  };
-
-  const hydrateControlPointLabel = async (id: string, coord: Coords) => {
-    try {
-      const url = new URL("/api/geocode", window.location.origin);
-      url.searchParams.set("lon", String(coord[0]));
-      url.searchParams.set("lat", String(coord[1]));
-      const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
-      const data = await res.json().catch(() => null);
-      const label = typeof data?.label === "string" ? data.label : null;
-      updateControlPointLabel(id, coord, label);
-    } catch {
-      updateControlPointLabel(id, coord, formatCoordLabel(coord));
-    }
-  };
-
   const resetPlannerFeedback = () => {
     setPlanBlocked(null);
     setShowAllWarnings(false);
@@ -895,7 +705,6 @@ export default function Page() {
       setActiveIdx(0);
       setSteps([]);
       setStreets([]);
-      setRouteEditMode(false);
       setPlanBlocked({
         error: "Backend hat kein GeoJSON geliefert (erwartet: geojson/geojosn).",
         warnings: Array.isArray(data?.blocking_warnings) ? data.blocking_warnings : [],
@@ -938,34 +747,26 @@ export default function Page() {
     return true;
   };
 
-  const buildRequestVias = (resolvedInputVias: Coords[], mapControls: MapControlPoint[]) => {
-    if (mapControls.length === 0) return resolvedInputVias;
-    if (resolvedInputVias.length === 0) return mapControls.flatMap(expandControlPointToVias);
-    return orderViasWithMapControls(currentRouteCoords(), resolvedInputVias, mapControls);
-  };
+  type VehicleOverride = { w: number; h: number; wt: number; ax: number; heavy: boolean };
 
   const requestPlan = async (
     start: Coords,
     end: Coords,
     resolvedInputVias: Coords[],
-    mapControls: MapControlPoint[],
-    options?: { preserveView?: boolean }
+    options?: { preserveView?: boolean; vehicleOverride?: VehicleOverride }
   ) => {
     resetPlannerFeedback();
-    const previousDistanceKm = currentRouteDistanceKm();
 
+    const vo = options?.vehicleOverride;
     const body = buildPlanBody(start, end, DEFAULT_PLAN_PRESET, {
       ts: toUtcIso(whenIsoLocal),
       tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Berlin",
-      vehicle: { width_m: width, height_m: height, weight_t: weight, axleload_t: axle },
+      vehicle: { width_m: vo?.w ?? width, height_m: vo?.h ?? height, weight_t: vo?.wt ?? weight, axleload_t: vo?.ax ?? axle },
       directions_language: "de-DE",
       require_clean: true,
-      heavy_transport: heavyTransport,
-      vias: buildRequestVias(resolvedInputVias, mapControls),
+      heavy_transport: vo?.heavy ?? heavyTransport,
+      vias: resolvedInputVias,
     });
-    if (mapControls.length > 0) {
-      (body as any).via_mode = "pass_through";
-    }
 
     const res = await fetch("/api/route/plan", {
       method: "POST",
@@ -977,15 +778,6 @@ export default function Page() {
       setRouteError("Planner-Fehler: " + JSON.stringify(data?.error || data));
       setPlanMeta(null);
       return false;
-    }
-
-    if (mapControls.length > 0) {
-      const gj = pickGeojson(data);
-      const validation = validateAdjustedRoute(gj, previousDistanceKm, mapControls);
-      if (!validation.ok) {
-        setRouteError(validation.reason);
-        return false;
-      }
     }
 
     return applyPlannerResponse(data, options);
@@ -1380,148 +1172,6 @@ export default function Page() {
     };
   }, []);
 
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapLoadedRef.current || !map.isStyleLoaded() || !map.getLayer("route-active-line")) return;
-
-    const onEnter = () => {
-      if (routeEditMode && !loading) {
-        map.getCanvas().style.cursor = "crosshair";
-      }
-    };
-
-    const onLeave = () => {
-      if (map.getCanvas().style.cursor === "crosshair") {
-        map.getCanvas().style.cursor = "";
-      }
-    };
-
-    const onClick = (e: maplibregl.MapLayerMouseEvent) => {
-      if (!routeEditMode || loading || !startCoord || !endCoord || !geojson) return;
-      if (mapControlPoints.length >= MAX_ROUTE_CONTROL_POINTS) {
-        alert(`Es sind maximal ${MAX_ROUTE_CONTROL_POINTS} Kontrollpunkte gleichzeitig sinnvoll.`);
-        return;
-      }
-
-      const routeCoords = currentRouteCoords();
-      const projection = projectPointToRoute([e.lngLat.lng, e.lngLat.lat], routeCoords);
-      if (!projection) return;
-
-      const nearbyCoords = [startCoord, endCoord, ...viaCoords, ...mapControlPoints.map((point) => point.anchorCoord)];
-      const tooClose = nearbyCoords.some(
-        (coord) => haversine(projection.snapped[1], projection.snapped[0], coord[1], coord[0]) < MIN_CONTROL_POINT_DISTANCE_M
-      );
-      if (tooClose) return;
-
-      const guideBefore =
-        routeCoordAtMeasure(routeCoords, Math.max(0, projection.measureM - CONTROL_POINT_GUIDE_WINDOW_M)) ??
-        routeCoords[0];
-      const guideAfter =
-        routeCoordAtMeasure(routeCoords, projection.measureM + CONTROL_POINT_GUIDE_WINDOW_M) ??
-        routeCoords[routeCoords.length - 1];
-
-      const nextPoint: MapControlPoint = {
-        id: makeControlPointId(),
-        coord: projection.snapped,
-        label: "Auf Route platziert – jetzt ziehen",
-        anchorMeasureM: projection.measureM,
-        anchorCoord: projection.snapped,
-        guideBefore,
-        guideAfter,
-      };
-      const nextControls = insertControlPointByRoutePosition(mapControlPoints, nextPoint, routeCoords);
-      setMapControlPoints(nextControls);
-    };
-
-    map.on("mouseenter", "route-active-line", onEnter);
-    map.on("mouseleave", "route-active-line", onLeave);
-    map.on("click", "route-active-line", onClick);
-
-    return () => {
-      map.off("mouseenter", "route-active-line", onEnter);
-      map.off("mouseleave", "route-active-line", onLeave);
-      map.off("click", "route-active-line", onClick);
-      if (map.getCanvas().style.cursor === "crosshair") {
-        map.getCanvas().style.cursor = "";
-      }
-    };
-  }, [routeEditMode, loading, mapControlPoints, startCoord, endCoord, viaCoords, geojson, activeIdx, mapReady]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapLoadedRef.current) return;
-
-    controlMarkersRef.current.forEach((marker) => marker.remove());
-    controlMarkersRef.current = [];
-
-    if (mapControlPoints.length === 0) return;
-
-    mapControlPoints.forEach((point, index) => {
-      const el = document.createElement("button");
-      el.type = "button";
-      el.setAttribute("aria-label", `Kontrollpunkt ${index + 1}`);
-      el.title = routeEditMode
-        ? `${point.label ?? `Kontrollpunkt ${index + 1}`} verschieben`
-        : point.label ?? `Kontrollpunkt ${index + 1}`;
-      el.style.width = "24px";
-      el.style.height = "24px";
-      el.style.borderRadius = "999px";
-      el.style.border = "3px solid #ffffff";
-      el.style.background = "#F97316";
-      el.style.color = "#ffffff";
-      el.style.fontSize = "12px";
-      el.style.fontWeight = "800";
-      el.style.boxShadow = "0 3px 10px rgba(15, 23, 42, 0.26)";
-      el.style.cursor = routeEditMode ? "grab" : "default";
-      el.style.display = "flex";
-      el.style.alignItems = "center";
-      el.style.justifyContent = "center";
-      el.style.padding = "0";
-      el.style.lineHeight = "1";
-      el.textContent = String(index + 1);
-
-      const marker = new maplibregl.Marker({
-        element: el,
-        draggable: routeEditMode,
-        anchor: "center",
-      })
-        .setLngLat(point.coord)
-        .addTo(map);
-
-      if (routeEditMode) {
-        marker.on("dragstart", () => {
-          el.style.cursor = "grabbing";
-          el.style.transform = "scale(1.08)";
-        });
-        marker.on("dragend", () => {
-          el.style.cursor = "grab";
-          el.style.transform = "";
-          const lngLat = marker.getLngLat();
-          const nextCoord: Coords = [Number(lngLat.lng), Number(lngLat.lat)];
-          const previousControls = mapControlPoints;
-          const nextControls = mapControlPoints.map((existing) =>
-            existing.id === point.id ? { ...existing, coord: nextCoord, label: null } : existing
-          );
-          setMapControlPoints(nextControls);
-          void hydrateControlPointLabel(point.id, nextCoord);
-          void rerouteWithMapControls(nextControls).then((ok) => {
-            if (!ok) {
-              setMapControlPoints(previousControls);
-              marker.setLngLat(point.coord);
-            }
-          });
-        });
-      }
-
-      controlMarkersRef.current.push(marker);
-    });
-
-    return () => {
-      controlMarkersRef.current.forEach((marker) => marker.remove());
-      controlMarkersRef.current = [];
-    };
-  }, [mapControlPoints, routeEditMode, geojson, startCoord, endCoord, viaCoords, mapReady]);
-
   // -------------------- Punkte immer zeichnen (auch ohne Route) --------------------
   useEffect(() => {
     const map = mapRef.current;
@@ -1840,37 +1490,6 @@ export default function Page() {
     return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString();
   }
 
-  async function rerouteWithMapControls(nextControls: MapControlPoint[]) {
-    if (!startCoord || !endCoord) return;
-
-    setLoading(true);
-    document.body.style.cursor = "progress";
-    try {
-      return await requestPlan(startCoord, endCoord, viaCoords, nextControls, { preserveView: true });
-    } catch (e: any) {
-      alert(String(e));
-      return false;
-    } finally {
-      setLoading(false);
-      document.body.style.cursor = "auto";
-    }
-  }
-
-  async function removeMapControlPoint(id: string) {
-    const nextControls = mapControlPoints.filter((point) => point.id !== id);
-    setMapControlPoints(nextControls);
-    if (!startCoord || !endCoord) return;
-    const ok = await rerouteWithMapControls(nextControls);
-    if (!ok) setMapControlPoints(mapControlPoints);
-  }
-
-  async function resetMapControlPoints() {
-    setMapControlPoints([]);
-    if (!startCoord || !endCoord) return;
-    const ok = await rerouteWithMapControls([]);
-    if (!ok) setMapControlPoints(mapControlPoints);
-  }
-
   async function selectPermitRoute(p: any) {
     const map = mapRef.current;
 
@@ -1976,19 +1595,11 @@ export default function Page() {
           .map((entry) => toCoords(entry.value, entry.pick))
       );
 
-      const routeChanged =
-        !coordsEqualApprox(start, startCoord) || !coordsEqualApprox(end, endCoord);
-      const nextMapControls = routeChanged ? [] : mapControlPoints;
-
       setStartCoord(start);
       setViaCoords(viaResolved);
       setEndCoord(end);
-      if (routeChanged && mapControlPoints.length > 0) {
-        setMapControlPoints([]);
-        setRouteEditMode(false);
-      }
 
-      await requestPlan(start, end, viaResolved, nextMapControls);
+      await requestPlan(start, end, viaResolved);
     } catch (e: any) {
       setRouteError(String(e?.message ?? e));
     } finally {
@@ -2028,8 +1639,6 @@ export default function Page() {
     setEndPick(startPick);
     setStartCoord(endCoord);
     setEndCoord(startCoord);
-    setMapControlPoints([]);
-    setRouteEditMode(false);
   }
 
   function resetRouteForm() {
@@ -2042,8 +1651,6 @@ export default function Page() {
     setStartCoord(null);
     setEndCoord(null);
     setViaCoords([]);
-    setMapControlPoints([]);
-    setRouteEditMode(false);
     setGeojson(null);
     setActiveIdx(0);
     resetPlannerFeedback();
@@ -2131,10 +1738,6 @@ export default function Page() {
                 <div>
                   <span>{activeDurationS > 0 ? `${sToMin(activeDurationS)} min` : `${routeFeatureCount} Variante${routeFeatureCount === 1 ? "" : "n"}`}</span>
                   <small>Fahrzeit</small>
-                </div>
-                <div>
-                  <span>{mapControlPoints.length}</span>
-                  <small>Ziehpunkte</small>
                 </div>
               </div>
             )}
@@ -2486,96 +2089,6 @@ export default function Page() {
               </button>
             )}
           </div>
-
-          {(geojson || mapControlPoints.length > 0) && (
-            <div
-              style={{
-                marginTop: 12,
-                padding: 12,
-                borderRadius: 16,
-                border: routeEditMode ? "1px solid var(--blue-soft-line)" : "1px solid var(--line-soft)",
-                background: routeEditMode ? "var(--blue-soft-bg)" : "var(--surface-muted)",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
-                <div style={{ flex: "1 1 220px" }}>
-                  <div className="card-subtitle" style={{ marginTop: 0, color: "var(--text)" }}>
-                    Route interaktiv anpassen
-                  </div>
-                  <small className="field-note">
-                    Klicke im Bearbeitungsmodus direkt auf die blaue Route, um einen Ziehpunkt
-                    zu setzen. Danach kannst du ihn an die gewünschte Straße ziehen. Wir rechnen
-                    erst nach dem Loslassen neu.
-                  </small>
-                </div>
-                <div className="count-pill">
-                  {mapControlPoints.length} Kontrollpunkt{mapControlPoints.length === 1 ? "" : "e"}
-                </div>
-              </div>
-
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-                <button
-                  type="button"
-                  className="ghost-button"
-                  onClick={() => setRouteEditMode((current) => !current)}
-                  disabled={!geojson}
-                >
-                  <PencilRuler size={15} /> {routeEditMode ? "Bearbeitung beenden" : "Route anpassen"}
-                </button>
-                {mapControlPoints.length > 0 && (
-                  <button
-                    type="button"
-                    className="ghost-button"
-                    onClick={() => void resetMapControlPoints()}
-                  >
-                    <Trash2 size={15} /> Kontrollpunkte entfernen
-                  </button>
-                )}
-              </div>
-
-              {routeEditMode && (
-                <small className="field-note" style={{ marginTop: 10 }}>
-                  Tipp: Ein oder zwei Ziehpunkte genügen fast immer. Wenn eine Ziehbewegung einen
-                  unplausiblen Umweg erzeugt, behalten wir die letzte sinnvolle Route bei.
-                </small>
-              )}
-
-              {mapControlPoints.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
-                  {mapControlPoints.map((point, index) => (
-                    <div
-                      key={point.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 10,
-                        padding: "10px 12px",
-                        borderRadius: 14,
-                        border: "1px solid var(--orange-line)",
-                        background: "var(--orange-soft-bg)",
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontSize: "0.86rem", fontWeight: 800 }}>
-                          Ziehpunkt {index + 1}
-                        </div>
-                        <small className="field-note">{point.label ?? formatCoordLabel(point.coord)}</small>
-                      </div>
-                      <button
-                        type="button"
-                        className="ghost-button"
-                        onClick={() => void removeMapControlPoint(point.id)}
-                        style={{ whiteSpace: "nowrap" }}
-                      >
-                        <Trash2 size={14} /> Entfernen
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="row" style={{ marginTop: 6 }}>
             <div className="col">

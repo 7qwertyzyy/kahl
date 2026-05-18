@@ -40,3 +40,6 @@ frontend/dev-server.*.log
 Thumbs.db
 .idea/
 .vscode/
+
+.vercel
+.env*.local

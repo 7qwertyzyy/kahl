@@ -1,19 +1,107 @@
 import type { RouteResult, VehicleParams } from "./types";
+import { fetchPriorityRoadworks, isActiveAt, isRoadworkWidthConflict } from "./autobahn-api";
 
 const ORS_BASE = "https://api.openrouteservice.org/v2";
+const ROADWORK_BUFFER_METERS = 180;
+const MAX_AVOID_POLYGONS = 80;
+
+function metersToLatitudeDegrees(meters: number): number {
+  return meters / 111_320;
+}
+
+function metersToLongitudeDegrees(meters: number, latitude: number): number {
+  const latitudeRadians = latitude * Math.PI / 180;
+  return meters / (111_320 * Math.max(Math.cos(latitudeRadians), 0.1));
+}
+
+function rectangleAroundBounds(
+  minLng: number,
+  minLat: number,
+  maxLng: number,
+  maxLat: number,
+  bufferMeters = ROADWORK_BUFFER_METERS
+): GeoJSON.Polygon {
+  const centerLat = (minLat + maxLat) / 2;
+  const latBuffer = metersToLatitudeDegrees(bufferMeters);
+  const lngBuffer = metersToLongitudeDegrees(bufferMeters, centerLat);
+
+  const west = minLng - lngBuffer;
+  const east = maxLng + lngBuffer;
+  const south = minLat - latBuffer;
+  const north = maxLat + latBuffer;
+
+  return {
+    type: "Polygon",
+    coordinates: [[
+      [west, south],
+      [east, south],
+      [east, north],
+      [west, north],
+      [west, south],
+    ]],
+  };
+}
+
+function roadworkAvoidPolygon(roadwork: {
+  extent?: string;
+  coordinate?: { lat: string; long: string };
+}): GeoJSON.Polygon | null {
+  if (roadwork.extent) {
+    const parts = roadwork.extent.split(",").map(Number);
+    if (parts.length === 4 && parts.every(Number.isFinite)) {
+      const [lat1, lng1, lat2, lng2] = parts;
+      return rectangleAroundBounds(
+        Math.min(lng1, lng2),
+        Math.min(lat1, lat2),
+        Math.max(lng1, lng2),
+        Math.max(lat1, lat2)
+      );
+    }
+  }
+
+  const lat = Number.parseFloat(roadwork.coordinate?.lat ?? "");
+  const lng = Number.parseFloat(roadwork.coordinate?.long ?? "");
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  return rectangleAroundBounds(lng, lat, lng, lat);
+}
+
+async function buildAvoidPolygons(
+  vehicle: VehicleParams,
+  routeDate: Date
+): Promise<GeoJSON.MultiPolygon | null> {
+  const roadworks = await fetchPriorityRoadworks();
+  const polygons = roadworks
+    .filter((roadwork) => isActiveAt(roadwork, routeDate))
+    .filter((roadwork) => roadwork.isBlocked || isRoadworkWidthConflict(roadwork, vehicle.width))
+    .map(roadworkAvoidPolygon)
+    .filter((polygon): polygon is GeoJSON.Polygon => polygon !== null)
+    .slice(0, MAX_AVOID_POLYGONS);
+
+  if (polygons.length === 0) return null;
+
+  return {
+    type: "MultiPolygon",
+    coordinates: polygons.map((polygon) => polygon.coordinates),
+  };
+}
 
 export async function calculateRoute(
   coordinates: [number, number][],
-  vehicle: VehicleParams
+  vehicle: VehicleParams,
+  routeDate = new Date()
 ): Promise<RouteResult> {
   const apiKey = process.env.NEXT_PUBLIC_ORS_API_KEY;
   if (!apiKey) throw new Error("ORS API-Key fehlt. Bitte NEXT_PUBLIC_ORS_API_KEY setzen.");
+
+  const avoidPolygons = await buildAvoidPolygons(vehicle, routeDate).catch(() => null);
 
   const body = {
     coordinates,
     instructions: true,
     language: "de",
     units: "m",
+    continue_straight: true,
     options: {
       profile_params: {
         restrictions: {
@@ -23,6 +111,7 @@ export async function calculateRoute(
           axleload: vehicle.axleload,
         },
       },
+      ...(avoidPolygons ? { avoid_polygons: avoidPolygons } : {}),
     },
   };
 

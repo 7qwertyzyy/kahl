@@ -51,6 +51,39 @@ export function isActiveAt(roadwork: Roadwork, dateTime: Date): boolean {
   return dateTime >= start && dateTime <= end;
 }
 
+export function getRoadworkMaxWidth(roadwork: Roadwork): number | null {
+  const text = [
+    roadwork.title,
+    roadwork.subtitle,
+    Array.isArray(roadwork.description) ? roadwork.description.join(" ") : roadwork.description,
+    roadwork.footer,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ");
+
+  const widthPatterns = [
+    /(?:max(?:\.|imal(?:e|er|en)?)?|bis|zul(?:\.|aessig(?:e|er|en)?))\s*(?:fahrzeug)?\s*breite\s*(?:von|:)?\s*(\d+(?:[,.]\d+)?)\s*m/i,
+    /(?:breite|durchfahrtsbreite|fahrstreifenbreite)\s*(?:max(?:\.|imal)?|bis|<=|:)?\s*(\d+(?:[,.]\d+)?)\s*m/i,
+    /(\d+(?:[,.]\d+)?)\s*m\s*(?:max(?:\.|imal(?:e|er|en)?)?)?\s*(?:fahrzeug)?\s*breite/i,
+  ];
+
+  for (const pattern of widthPatterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const width = Number.parseFloat(match[1].replace(",", "."));
+    if (Number.isFinite(width) && width > 0 && width < 20) return width;
+  }
+
+  return null;
+}
+
+export function isRoadworkWidthConflict(roadwork: Roadwork, vehicleWidth: number): boolean {
+  const maxWidth = getRoadworkMaxWidth(roadwork);
+  return maxWidth !== null && vehicleWidth > maxWidth;
+}
+
 export function roadworksToGeoJSON(
   roadworks: Roadwork[],
   filterDate: Date
@@ -66,6 +99,7 @@ export function roadworksToGeoJSON(
       description: Array.isArray(rw.description)
         ? rw.description.join("\n")
         : String(rw.description ?? ""),
+      maxWidth: getRoadworkMaxWidth(rw),
       isBlocked: rw.isBlocked,
       start: rw.startTimestamp,
       end: rw.endTimestamp ?? null,

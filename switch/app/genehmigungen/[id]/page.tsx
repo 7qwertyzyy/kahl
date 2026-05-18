@@ -72,12 +72,13 @@ export default function PermitDetail() {
   function openInPlaner() {
     if (!permit) return;
     const qs = new URLSearchParams({
-      ...(permit.startort ? { start: permit.startort } : {}),
-      ...(permit.zielort ? { ziel: permit.zielort } : {}),
+      ...(permit.start_adresse || permit.startort ? { start: permit.start_adresse || permit.startort || "" } : {}),
+      ...(permit.ziel_adresse || permit.zielort ? { ziel: permit.ziel_adresse || permit.zielort || "" } : {}),
       ...(permit.fahrzeug_breite_m != null ? { breite: String(permit.fahrzeug_breite_m) } : {}),
       ...(permit.fahrzeug_hoehe_m != null ? { hoehe: String(permit.fahrzeug_hoehe_m) } : {}),
       ...(permit.gesamtgewicht_t != null ? { gewicht: String(permit.gesamtgewicht_t) } : {}),
       ...(permit.achslast_t != null ? { achslast: String(permit.achslast_t) } : {}),
+      ...(permit.gueltig_von ? { datum: permit.gueltig_von } : {}),
     }).toString();
     router.push(`/planer?${qs}`);
   }

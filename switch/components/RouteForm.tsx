@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, MutableRefObject } from "react";
-import { Plus, Trash2, MapPin, Navigation, Loader2, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { MapPin, Navigation, Loader2, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { geocodeAddress } from "@/lib/geocoding";
 import type { RouteStop, VehicleParams, VehicleMode } from "@/lib/types";
 import type { GeocodingResult } from "@/lib/types";
@@ -117,8 +117,6 @@ interface RouteFormProps {
   onStartChange: (s: RouteStop) => void;
   end: RouteStop;
   onEndChange: (s: RouteStop) => void;
-  waypoints: RouteStop[];
-  onWaypointsChange: (w: RouteStop[]) => void;
   onCalculateRoute: () => void;
   isRouting: boolean;
   routeError: string | null;
@@ -133,35 +131,12 @@ export default function RouteForm({
   onStartChange,
   end,
   onEndChange,
-  waypoints,
-  onWaypointsChange,
   onCalculateRoute,
   isRouting,
   routeError,
   mapFlyTo,
 }: RouteFormProps) {
   const [vehicleOpen, setVehicleOpen] = useState(false);
-
-  const addWaypoint = useCallback(() => {
-    onWaypointsChange([
-      ...waypoints,
-      { id: crypto.randomUUID(), label: "", coordinates: null },
-    ]);
-  }, [waypoints, onWaypointsChange]);
-
-  const removeWaypoint = useCallback(
-    (id: string) => {
-      onWaypointsChange(waypoints.filter((w) => w.id !== id));
-    },
-    [waypoints, onWaypointsChange]
-  );
-
-  const updateWaypoint = useCallback(
-    (updated: RouteStop) => {
-      onWaypointsChange(waypoints.map((w) => (w.id === updated.id ? updated : w)));
-    },
-    [waypoints, onWaypointsChange]
-  );
 
   const setField = (field: keyof VehicleParams, value: number) => {
     onVehicleChange({ ...vehicle, [field]: value });
@@ -190,31 +165,6 @@ export default function RouteForm({
           />
         </div>
 
-        {/* Waypoints */}
-        {waypoints.map((wp, idx) => (
-          <div key={wp.id} className="space-y-1">
-            <label className="text-xs text-gray-400">Zwischenstopp {idx + 1}</label>
-            <div className="flex gap-1">
-              <div className="flex-1">
-                <GeoInput
-                  stopId={wp.id}
-                  placeholder={`Zwischenstopp ${idx + 1}…`}
-                  value={wp.label.split(",")[0]}
-                  onChange={updateWaypoint}
-                  icon={<MapPin size={14} className="text-blue-400" />}
-                  mapFlyTo={mapFlyTo}
-                />
-              </div>
-              <button
-                onClick={() => removeWaypoint(wp.id)}
-                className="p-2 rounded-lg bg-gray-700 hover:bg-red-900 text-gray-400 hover:text-red-300 transition-colors"
-              >
-                <Trash2 size={13} />
-              </button>
-            </div>
-          </div>
-        ))}
-
         {/* End */}
         <div className="space-y-1">
           <label className="text-xs text-gray-400">Zielort</label>
@@ -227,14 +177,6 @@ export default function RouteForm({
             mapFlyTo={mapFlyTo}
           />
         </div>
-
-        <button
-          onClick={addWaypoint}
-          className="flex items-center gap-1.5 w-full justify-center py-1.5 rounded-md border border-dashed border-gray-600 text-xs text-gray-400 hover:border-blue-500 hover:text-blue-400 transition-colors"
-        >
-          <Plus size={12} />
-          Zwischenstopp hinzufügen
-        </button>
 
         {/* Vehicle params collapsible */}
         <div className="border border-gray-700 rounded-lg overflow-hidden">

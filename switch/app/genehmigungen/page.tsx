@@ -50,11 +50,13 @@ export default function GenehmigungsListe() {
 
   function openInPlaner(p: Permit) {
     const qs = new URLSearchParams({
-      ...(p.startort ? { start: p.startort } : {}),
-      ...(p.zielort ? { ziel: p.zielort } : {}),
+      ...(p.start_adresse || p.startort ? { start: p.start_adresse || p.startort || "" } : {}),
+      ...(p.ziel_adresse || p.zielort ? { ziel: p.ziel_adresse || p.zielort || "" } : {}),
       ...(p.fahrzeug_breite_m != null ? { breite: String(p.fahrzeug_breite_m) } : {}),
       ...(p.fahrzeug_hoehe_m != null ? { hoehe: String(p.fahrzeug_hoehe_m) } : {}),
       ...(p.gesamtgewicht_t != null ? { gewicht: String(p.gesamtgewicht_t) } : {}),
+      ...(p.achslast_t != null ? { achslast: String(p.achslast_t) } : {}),
+      ...(p.gueltig_von ? { datum: p.gueltig_von } : {}),
     }).toString();
     router.push(`/planer?${qs}`);
   }
